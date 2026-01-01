@@ -63,18 +63,24 @@ def run_ocr(image_bytes: bytes, prompt_override: str | None = None) -> str:
     if not image_bytes:
         raise ValueError("Empty image payload")
 
+    logging.info(f"[OCR] Processing {len(image_bytes)} bytes of image data")
+
     # Validate image
     try:
         image = Image.open(io.BytesIO(image_bytes))
         image.verify()
+        logging.info(f"[OCR] Image validated: {image.format if hasattr(image, 'format') else 'unknown'}")
     except UnidentifiedImageError as exc:
+        logging.error(f"[OCR] Invalid image format: {exc}")
         raise ValueError("Uploaded file is not a valid image") from exc
 
     # Encode image to base64
     base64_image = base64.b64encode(image_bytes).decode("utf-8")
-    data_url = f"data:image/jpeg;base64,{base64_image}"
+    data_url = f"data:image/jpeg;base64,{base64_image[:50]}..."  # Log truncated for readability
+    logging.info(f"[OCR] Image encoded to base64 ({len(base64_image)} chars)")
 
     client = _get_client()
+    logging.info(f"[OCR] Calling HF API with model: {OCR_MODEL_ID}")
 
     try:
         completion = client.chat.completions.create(
@@ -89,15 +95,18 @@ def run_ocr(image_bytes: bytes, prompt_override: str | None = None) -> str:
                         },
                         {
                             "type": "image_url",
-                            "image_url": {"url": data_url},
+                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
                         },
                     ],
                 }
             ],
             max_tokens=OCR_MAX_TOKENS,
         )
-        return completion.choices[0].message.content or ""
+        result = completion.choices[0].message.content or ""
+        logging.info(f"[OCR] Success! Extracted {len(result)} characters")
+        return result
     except Exception as exc:
+        logging.error(f"[OCR] HF API call failed: {exc}", exc_info=True)
         raise ModelLoadError(f"HF API call failed: {exc}") from exc
 
 
