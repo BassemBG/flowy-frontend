@@ -1,6 +1,8 @@
 # Backend
 
-This is the backend for the project, built with FastAPI. It contains modular services for:
+This backend uses a microservices architecture with FastAPI. Each service runs in its own container and is managed via Docker Compose. The gateway service proxies all frontend requests to the appropriate microservice.
+
+**Microservices:**
 
 - WhatsApp Agent
 - AI Glossary Management
@@ -11,23 +13,36 @@ This is the backend for the project, built with FastAPI. It contains modular ser
 
 ## Setup
 
-1. Install dependencies:
+## Running the Backend
+
+1. **Build and start all services with Docker Compose:**
+
    ```bash
-   pip install -r requirements.txt
+   docker-compose up --build
    ```
 
-2. Run the application:
-   ```bash
-   uvicorn main:app --reload
-   ```
+   This will start the gateway and all microservices. The gateway will be available at http://localhost:8000.
 
-3. Use Docker Compose to run all services:
-   ```bash
-   docker-compose up
-   ```
+2. **Accessing Services:**
+
+   - The frontend should send all API requests to the gateway (e.g., `http://localhost:8000/ai_glossary/`).
+   - Each microservice runs independently and can have its own dependencies and environment variables.
+
+3. **Development (optional):**
+   - To run a microservice locally for development, navigate to its folder and run:
+     ```bash
+     pip install -r requirements.txt
+     uvicorn main:app --reload
+     ```
 
 ## Environment Variables
 
-Set the following variables in the `.env` file:
-- `APP_ENV`: Application environment (e.g., `development`, `production`)
-- `DEBUG`: Enable or disable debug mode.
+Each microservice can have its own `.env` file in its folder for service-specific environment variables. Example:
+
+```
+microservices/ai_glossary/.env
+microservices/whatsapp_agent/.env
+...
+```
+
+These are loaded automatically by Docker Compose for each service.
