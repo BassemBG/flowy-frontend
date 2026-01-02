@@ -1,5 +1,14 @@
 import { Link } from "react-router-dom";
-import { MessageCircle, BookOpen, Languages, GraduationCap, StickyNote, Headphones, LayoutDashboard } from "lucide-react";
+import {
+  MessageCircle,
+  BookOpen,
+  Languages,
+  GraduationCap,
+  StickyNote,
+  Headphones,
+  LayoutDashboard,
+  Mic,
+} from "lucide-react";
 
 const features = [
   {
@@ -38,6 +47,11 @@ const features = [
     path: "/shadowing",
     icon: Headphones,
   },
+  {
+    title: "Pronunciation",
+    path: "/pronunciation",
+    icon: Mic,
+  },
 ];
 
 export default function Dashboard() {
@@ -49,7 +63,9 @@ export default function Dashboard() {
           <LayoutDashboard className="h-5 w-5 text-muted-foreground" />
           <div>
             <h1 className="text-lg font-semibold text-foreground">Dashboard</h1>
-            <p className="text-sm text-muted-foreground">Welcome back to Flowy</p>
+            <p className="text-sm text-muted-foreground">
+              Welcome back to Flowy
+            </p>
           </div>
         </div>
       </div>
@@ -60,10 +76,12 @@ export default function Dashboard() {
         <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-8 mb-8">
           <div className="relative z-10 max-w-xl">
             <h2 className="text-3xl font-bold text-foreground mb-2">
-              Welcome to <span className="text-transparent bg-clip-text gradient-brand">Flowy</span>
+              Welcome to{" "}
+              <span className="gradient-brand-text inline-block">Flowy</span>
             </h2>
             <p className="text-muted-foreground">
-              Your all-in-one AI productivity suite. Select a feature below to get started.
+              Your all-in-one AI productivity suite. Select a feature below to
+              get started.
             </p>
           </div>
           {/* Gradient decoration */}
@@ -81,8 +99,12 @@ export default function Dashboard() {
               <div className="h-12 w-12 rounded-xl gradient-brand flex items-center justify-center mb-4 shadow-glow group-hover:shadow-glow-lg transition-shadow">
                 <feature.icon className="h-6 w-6 text-primary-foreground" />
               </div>
-              <h3 className="font-semibold text-foreground mb-1">{feature.title}</h3>
-              <p className="text-sm text-muted-foreground">{feature.description}</p>
+              <h3 className="font-semibold text-foreground mb-1">
+                {feature.title}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {feature.description}
+              </p>
             </Link>
           ))}
         </div>

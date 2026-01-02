@@ -1,4 +1,13 @@
-import { Home, MessageCircle, BookOpen, Languages, GraduationCap, StickyNote, Headphones } from "lucide-react";
+import {
+  Home,
+  MessageCircle,
+  BookOpen,
+  Languages,
+  GraduationCap,
+  StickyNote,
+  Headphones,
+  Mic,
+} from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import flowyLogo from "@/assets/flowy-logo.png";
 import { cn } from "@/lib/utils";
@@ -38,6 +47,11 @@ const navItems = [
     title: "Shadowing",
     path: "/shadowing",
     icon: Headphones,
+  },
+  {
+    title: "Pronunciation",
+    path: "/pronunciation",
+    icon: Mic,
   },
 ];
 

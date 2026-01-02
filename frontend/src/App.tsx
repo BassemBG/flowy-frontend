@@ -12,6 +12,7 @@ import Skills from "./pages/Skills";
 import NoteKeeper from "./pages/NoteKeeper";
 import Shadowing from "./pages/Shadowing";
 import NotFound from "./pages/NotFound";
+import Pronunciation from "./pages/Pronunciation";
 import { Navigate } from "react-router-dom";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/skills" element={<Skills />} />
             <Route path="/notekeeper" element={<NoteKeeper />} />
             <Route path="/shadowing" element={<Shadowing />} />
+            <Route path="/pronunciation" element={<Pronunciation />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

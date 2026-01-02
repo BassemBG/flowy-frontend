@@ -1,0 +1,6 @@
+flask
+transformers
+torch
+librosa
+matplotlib
+flask-cors

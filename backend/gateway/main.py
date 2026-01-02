@@ -17,6 +17,9 @@ MICROSERVICE_URLS = {
     "shadowing": "http://shadowing:8000",
 }
 
+# Added pronunciation service integration (non-breaking)
+MICROSERVICE_URLS["pronunciation_service"] = "http://pronunciation_service:5000"
+
 
 @app.api_route("/{service}/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy(service: str, path: str, request: Request):
