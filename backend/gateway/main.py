@@ -40,20 +40,22 @@ async def proxy(service: str, path: str, request: Request):
     
     url = f"{MICROSERVICE_URLS[service]}/{path}"
     
-    # Preserve query params
-    if request.url.query:
-        url += f"?{request.url.query}"
+    # Forward headers (excluding Host which should be set by httpx)
+    headers = {}
+    for key, value in request.headers.items():
+        if key.lower() not in ("host", "content-length"):
+            headers[key] = value
     
     async with httpx.AsyncClient(timeout=120.0) as client:
-        # Forward request to microservice
         response = await client.request(
-            request.method,
+            request.method, 
             url,
-            headers=dict(request.headers),
+            headers=headers,
+            params=dict(request.query_params),
             content=await request.body() if request.method != "GET" else None,
         )
     
-    # Return response as-is to preserve content-type and structure
+    # Forward the response from the microservice
     return Response(
         content=response.content,
         status_code=response.status_code,
