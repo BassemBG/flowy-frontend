@@ -1,14 +1,21 @@
 """
 AI Service
-Handles chat generation using local TunCHAT model.
+Handles chat generation by calling external TunCHAT model API (Colab/remote server).
 """
 
+import os
 import logging
 from typing import Optional, Dict, Any
+
+import httpx
 
 from .conversation_service import get_history, format_history_for_model
 
 logger = logging.getLogger(__name__)
+
+# Colab/remote model endpoint - set via environment variable
+# Example: https://xxxx-xx-xxx-xxx-xxx.trycloudflare.com/chat
+MODEL_ENDPOINT = os.getenv("MODEL_ENDPOINT", "http://localhost:8010/chat")
 
 
 async def query_model(
@@ -18,7 +25,7 @@ async def query_model(
     user_phone: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Query the AI model with a message.
+    Query the remote TunCHAT model API.
     
     Args:
         message: User's message
@@ -47,19 +54,43 @@ async def query_model(
     if history_text:
         full_prompt = f"{history_text}\n\nCurrent message: {full_prompt}"
     
-    # Generate response - for now return a simple acknowledgment
-    # TODO: Integrate with actual AI model when available
+    # Add language instruction
+    if language == "french":
+        language_instruction = (
+            "\n\nIMPORTANT: Respond in professional French."
+        )
+    else:
+        language_instruction = (
+            "\n\nIMPORTANT: Respond in professional Arabic (Modern Standard Arabic)."
+        )
+    
+    full_prompt += language_instruction
+    
+    logger.info(f"📤 Sending request to model endpoint: {MODEL_ENDPOINT}")
+    
     try:
-        # Fallback response when no AI model is configured
-        if language == "french":
-            reply = f"Message reçu: '{message}'. Le service AI sera bientôt disponible."
-        else:
-            reply = f"تم استلام الرسالة: '{message}'. خدمة الذكاء الاصطناعي ستكون متاحة قريباً."
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                MODEL_ENDPOINT,
+                json={"message": full_prompt},
+                headers={"Content-Type": "application/json"}
+            )
+            response.raise_for_status()
+            data = response.json()
+            logger.info(f"✅ Model response received")
+            return data
+            
+    except httpx.TimeoutException:
+        logger.error("❌ Model request timed out (>120s)")
+        fallback = (
+            "Désolé, le temps de réponse a été trop long. Veuillez réessayer."
+            if language == "french"
+            else "عذراً، استغرق الرد وقتاً طويلاً. يرجى المحاولة مرة أخرى."
+        )
+        return {"reply": fallback}
         
-        return {"reply": reply}
-        
-    except Exception as e:
-        logger.error(f"Error generating response: {e}")
+    except httpx.HTTPError as e:
+        logger.error(f"❌ Error querying model: {e}")
         fallback = (
             "Bonjour! Le service AI est temporairement indisponible. Veuillez réessayer plus tard."
             if language == "french"
