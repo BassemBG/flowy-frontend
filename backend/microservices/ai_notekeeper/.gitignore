@@ -209,3 +209,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+backend/microservices/ai_notekeeper/notekeeper_core/ASR_train_kaldi_tunisian-main/nllb_local/
+*.bin
+*.model
+*.json
+

@@ -1,4 +1,5 @@
 version: "3.8"
+
 services:
   gateway:
     build: ./gateway
@@ -11,39 +12,40 @@ services:
       - automatic_translation
       - skills_development
       - shadowing
+
   whatsapp_agent:
     build: ./microservices/whatsapp_agent
     env_file:
       - ./microservices/whatsapp_agent/.env
-    expose:
-      - "8000"
+
   ai_glossary:
     build: ./microservices/ai_glossary
     env_file:
       - ./microservices/ai_glossary/.env
-    expose:
-      - "8000"
+
   ai_notekeeper:
     build: ./microservices/ai_notekeeper
     env_file:
       - ./microservices/ai_notekeeper/.env
-    expose:
-      - "8000"
+    volumes:
+      - ./microservices/ai_notekeeper/temp_audio:/app/temp_audio
+      - ./microservices/ai_notekeeper/outputs:/app/outputs
+    ports:
+    - "8001:8000"  
+
   automatic_translation:
     build: ./microservices/automatic_translation
     env_file:
       - ./microservices/automatic_translation/.env
-    expose:
-      - "8000"
+
   skills_development:
     build: ./microservices/skills_development
     env_file:
       - ./microservices/skills_development/.env
     ports:
       - "8000"
+
   shadowing:
     build: ./microservices/shadowing
     env_file:
       - ./microservices/shadowing/.env
-    expose:
-      - "8000"
