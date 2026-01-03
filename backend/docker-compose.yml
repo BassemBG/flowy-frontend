@@ -39,7 +39,7 @@ services:
     build: ./microservices/skills_development
     env_file:
       - ./microservices/skills_development/.env
-    expose:
+    ports:
       - "8000"
   shadowing:
     build: ./microservices/shadowing

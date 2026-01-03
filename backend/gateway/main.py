@@ -4,9 +4,19 @@
 
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
+from fastapi.middleware.cors import CORSMiddleware
 import httpx
 
 app = FastAPI()
+
+# CORS Configuration - Allow frontend to access gateway
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with specific frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 MICROSERVICE_URLS = {
     "whatsapp_agent": "http://whatsapp_agent:8000",
