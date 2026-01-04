@@ -58,6 +58,19 @@ export interface SearchRequest {
     top_k?: number;
 }
 
+export interface WebResult {
+    title: string;
+    snippet: string;
+    url: string;
+}
+
+export interface WebSearchResponse {
+    query: string;
+    results: WebResult[];
+    answer: string;
+    mode: 'web';
+}
+
 // ============================================================================
 // API Client Class
 // ============================================================================
@@ -152,6 +165,19 @@ class GlossaryAPI {
         topK: number = 5
     ): Promise<GlossarySearchResponse> {
         return this.request<GlossarySearchResponse>('/search/glossary', {
+            method: 'POST',
+            body: JSON.stringify({ query, top_k: topK }),
+        });
+    }
+
+    /**
+     * Search the web using DuckDuckGo + Groq LLM
+     */
+    async searchWeb(
+        query: string,
+        topK: number = 5
+    ): Promise<WebSearchResponse> {
+        return this.request<WebSearchResponse>('/search/web', {
             method: 'POST',
             body: JSON.stringify({ query, top_k: topK }),
         });

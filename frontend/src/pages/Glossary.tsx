@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { BookOpen, Upload, FileSpreadsheet, Trash2, Eye, Send, Search, Globe, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,82 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { glossaryApi, ManagedFile as ApiManagedFile } from "@/services/glossaryApi";
+
+// Simple markdown renderer for chat messages
+function renderMarkdown(text: string): React.ReactNode {
+  // Split by lines first
+  const lines = text.split('\n');
+
+  return lines.map((line, lineIndex) => {
+    // Headers (## )
+    if (line.startsWith('## ')) {
+      return <h3 key={lineIndex} className="text-base font-semibold mt-3 mb-1">{line.slice(3)}</h3>;
+    }
+    if (line.startsWith('# ')) {
+      return <h2 key={lineIndex} className="text-lg font-bold mt-3 mb-1">{line.slice(2)}</h2>;
+    }
+
+    // Process inline formatting
+    const processInline = (text: string): React.ReactNode[] => {
+      const parts: React.ReactNode[] = [];
+      let remaining = text;
+      let keyIndex = 0;
+
+      while (remaining) {
+        // Match markdown links [text](url)
+        const linkMatch = remaining.match(/\[([^\]]+)\]\(([^)]+)\)/);
+        // Match bold **text**
+        const boldMatch = remaining.match(/\*\*([^*]+)\*\*/);
+
+        if (linkMatch && (!boldMatch || linkMatch.index! < boldMatch.index!)) {
+          // Add text before the match
+          if (linkMatch.index! > 0) {
+            parts.push(remaining.slice(0, linkMatch.index));
+          }
+          // Add the link
+          parts.push(
+            <a
+              key={`link-${keyIndex++}`}
+              href={linkMatch[2]}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 underline"
+            >
+              {linkMatch[1]}
+            </a>
+          );
+          remaining = remaining.slice(linkMatch.index! + linkMatch[0].length);
+        } else if (boldMatch) {
+          // Add text before the match
+          if (boldMatch.index! > 0) {
+            parts.push(remaining.slice(0, boldMatch.index));
+          }
+          // Add bold text
+          parts.push(<strong key={`bold-${keyIndex++}`}>{boldMatch[1]}</strong>);
+          remaining = remaining.slice(boldMatch.index! + boldMatch[0].length);
+        } else {
+          // No more matches, add remaining text
+          parts.push(remaining);
+          break;
+        }
+      }
+
+      return parts;
+    };
+
+    // List items
+    if (line.match(/^\d+\. /)) {
+      return <p key={lineIndex} className="ml-4 my-1">{processInline(line)}</p>;
+    }
+
+    // Regular paragraph or empty line
+    if (line.trim() === '') {
+      return <br key={lineIndex} />;
+    }
+
+    return <p key={lineIndex} className="my-1">{processInline(line)}</p>;
+  });
+}
 
 interface ManagedFile {
   id: string;
@@ -192,15 +268,36 @@ export default function Glossary() {
         setMessages((prev) => [...prev, errorMessage]);
       }
     } else {
-      // Web search - placeholder until implemented
-      const assistantMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: `[Web Search] Web search for "${query}" is not yet implemented. Coming soon!`,
-        timestamp: new Date(),
-        mode: "web",
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      // Web search - call backend API
+      try {
+        const response = await glossaryApi.searchWeb(query, 5);
+
+        let content = response.answer;
+        if (response.results.length > 0) {
+          content += "\n\n**Sources:**";
+          response.results.forEach((r, i) => {
+            content += `\n${i + 1}. [${r.title}](${r.url})`;
+          });
+        }
+
+        const assistantMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content,
+          timestamp: new Date(),
+          mode: "web",
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      } catch (error) {
+        const errorMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: `❌ Web search failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+          timestamp: new Date(),
+          mode: "web",
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      }
     }
 
     setIsSearching(false);
@@ -371,7 +468,7 @@ export default function Glossary() {
                         </span>
                       </div>
                     )}
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <div className="text-sm">{renderMarkdown(message.content)}</div>
                     <p className={`text-xs mt-1 ${message.role === "user" ? "text-white/70" : "text-muted-foreground"}`}>
                       {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </p>
