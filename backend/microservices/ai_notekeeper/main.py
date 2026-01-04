@@ -1,15 +1,10 @@
-
-# Example Microservice FastAPI App
-# To add a new endpoint, define it here or in a router and include it.
-
 from fastapi import FastAPI
-from router import router
+from routes.ai_notekeeper import router as notekeeper_router
 
-app = FastAPI()
-app.include_router(router)
+app = FastAPI(title="API Gateway")
 
-# Example endpoint (remove if not needed)
+app.include_router(notekeeper_router)
+
 @app.get("/health")
-def health_check():
-	"""Health check endpoint for monitoring."""
-	return {"status": "ok"}
+def health():
+    return {"status": "gateway running"}

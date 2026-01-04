@@ -1,182 +1,246 @@
-import { useState } from "react";
-import { Search, Filter, Calendar, BookOpen, Star, Bookmark, BookmarkCheck, ChevronLeft, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Filter, Calendar, BookOpen, Star, Bookmark, BookmarkCheck, ChevronLeft, Loader2, RefreshCw, Plus, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { useToast } from "@/hooks/use-toast";
+import { api, type Article as APIArticle } from "@/services/api";
 
 interface Article {
   id: string;
   title: string;
   topic: string;
-  difficulty: "beginner" | "intermediate" | "advanced";
   date: string;
-  excerpt: string;
   content: string;
-  vocabulary: { term: string; definition: string; example: string }[];
-  rating: number;
+  vocabulary: string[];
+  quality_score?: number;
   isBookmarked: boolean;
+  rating: number;
 }
 
-const mockArticles: Article[] = [
-  {
-    id: "1",
-    title: "Legal Translation: Key Principles and Best Practices",
-    topic: "Legal",
-    difficulty: "advanced",
-    date: "2024-01-15",
-    excerpt: "Understanding the nuances of legal translation requires both linguistic expertise and legal knowledge...",
-    content: `Legal translation is a specialized field that demands precision, accuracy, and a deep understanding of both source and target legal systems. Unlike general translation, legal translation carries significant consequences—a single mistranslated term can alter the meaning of a contract or affect the outcome of legal proceedings.
-
-The fundamental principle of legal translation is functional equivalence. This means that the translated text must have the same legal effect in the target jurisdiction as the original text has in the source jurisdiction. This often requires more than word-for-word translation; it demands a thorough understanding of legal concepts in both cultures.
-
-One of the greatest challenges legal translators face is dealing with system-specific terminology. Legal systems vary significantly across countries, and many legal concepts simply don't exist in other jurisdictions. For example, the common law concept of "trust" has no direct equivalent in civil law systems. In such cases, translators must use techniques like paraphrasing, footnotes, or keeping the original term with an explanation.
-
-Certification and authentication requirements also play a crucial role in legal translation. Many jurisdictions require sworn or certified translations for official documents. Translators must be familiar with these requirements and ensure their work meets all necessary standards.
-
-Quality assurance in legal translation involves multiple revision stages, cross-referencing with legal dictionaries and databases, and sometimes consultation with legal experts. The stakes are too high for errors, making thorough review processes essential.`,
-    vocabulary: [
-      { term: "Functional equivalence", definition: "Translation approach where the target text achieves the same legal effect as the source", example: "Functional equivalence requires adapting legal concepts to the target legal system." },
-      { term: "Sworn translation", definition: "A translation certified by an authorized translator for official use", example: "The court required a sworn translation of the birth certificate." },
-      { term: "Source jurisdiction", definition: "The legal system from which the original document originates", example: "Understanding the source jurisdiction helps interpret legal terminology correctly." },
-      { term: "Target jurisdiction", definition: "The legal system where the translated document will be used", example: "The translator adapted concepts for the target jurisdiction's requirements." },
-      { term: "Civil law system", definition: "Legal system based on codified statutes and legislation", example: "France operates under a civil law system derived from the Napoleonic Code." },
-      { term: "Common law", definition: "Legal system based on judicial precedents and case law", example: "The UK and US follow common law traditions." },
-      { term: "Paraphrasing", definition: "Expressing meaning using different words when direct translation isn't possible", example: "Complex legal concepts often require paraphrasing for clarity." },
-      { term: "Authentication", definition: "Official verification that a document is genuine", example: "The embassy required authentication of all translated documents." },
-    ],
-    rating: 4.5,
-    isBookmarked: false,
-  },
-  {
-    id: "2",
-    title: "Medical Translation: Terminology and Precision",
-    topic: "Medical",
-    difficulty: "advanced",
-    date: "2024-01-10",
-    excerpt: "Medical translation requires exceptional accuracy as errors can have life-threatening consequences...",
-    content: `Medical translation stands as one of the most demanding specializations in the translation industry. The field encompasses everything from patient records and clinical trial documents to pharmaceutical packaging and medical device manuals. Each category presents unique challenges and requires specific expertise.
-
-Accuracy in medical translation is non-negotiable. A misunderstood dosage instruction or incorrectly translated drug interaction warning could have fatal consequences. This is why medical translators must not only be linguistically proficient but also possess substantial knowledge of medical terminology, anatomy, pharmacology, and clinical procedures.
-
-The regulatory landscape adds another layer of complexity. Documents intended for regulatory submissions must comply with strict guidelines set by agencies like the FDA, EMA, or local health authorities. These regulations often specify format requirements, terminology preferences, and even font sizes. Translators must stay current with evolving regulations across different markets.
-
-Terminology consistency is paramount in medical translation. Using "heart attack" in one section and "myocardial infarction" in another might confuse readers or create legal liability. Translation memory tools and terminology databases help maintain consistency across large projects and multiple translators.
-
-Patient-facing materials require special consideration. While maintaining accuracy, translators must also ensure that information is accessible to non-medical audiences. This often means simplifying complex medical jargon while preserving critical information.`,
-    vocabulary: [
-      { term: "Clinical trial", definition: "Research study to evaluate medical interventions in human participants", example: "The drug completed Phase III clinical trials last year." },
-      { term: "Pharmacology", definition: "The science of drugs and their effects on living organisms", example: "Pharmacology knowledge helps translators understand drug interactions." },
-      { term: "Regulatory submission", definition: "Documents submitted to authorities for product approval", example: "The regulatory submission included all translated safety data." },
-      { term: "Myocardial infarction", definition: "Medical term for heart attack", example: "The patient was diagnosed with acute myocardial infarction." },
-      { term: "Translation memory", definition: "Database storing previously translated segments for reuse", example: "Translation memory improved consistency across the 500-page manual." },
-      { term: "Contraindication", definition: "Condition that makes a treatment inadvisable", example: "Pregnancy is listed as a contraindication for this medication." },
-      { term: "Adverse event", definition: "Undesirable experience occurring during treatment", example: "All adverse events must be reported and translated accurately." },
-      { term: "Patient-facing materials", definition: "Documents intended for patient consumption", example: "Patient-facing materials require clear, accessible language." },
-    ],
-    rating: 4.8,
-    isBookmarked: true,
-  },
-  {
-    id: "3",
-    title: "Introduction to CAT Tools for Translators",
-    topic: "Technology",
-    difficulty: "beginner",
-    date: "2024-01-05",
-    excerpt: "Computer-Assisted Translation tools have revolutionized the translation industry...",
-    content: `Computer-Assisted Translation (CAT) tools have become indispensable in the modern translation industry. These software applications help translators work more efficiently, maintain consistency, and manage large projects effectively. Understanding CAT tools is essential for anyone entering the translation profession.
-
-At their core, CAT tools divide text into segments (usually sentences) and present them alongside space for the translation. As you translate, the tool stores these pairs in a translation memory (TM). When similar segments appear later, the tool suggests previous translations, saving time and ensuring consistency.
-
-Terminology databases, or termbases, work alongside translation memories. These glossaries store approved translations for specific terms, ensuring that technical vocabulary is translated consistently throughout a project and across different translators.
-
-Most CAT tools also include quality assurance features. They can check for inconsistencies, missing translations, formatting errors, and terminology violations. Running these checks before delivery helps catch errors that might otherwise slip through.
-
-Popular CAT tools include SDL Trados Studio, memoQ, Wordfast, and cloud-based options like Smartcat and Memsource. Each has its strengths, and many translators work with multiple tools depending on client requirements.
-
-Learning to use CAT tools effectively takes time, but the investment pays off quickly. Productivity gains of 30-50% are common, and the consistency improvements make you more valuable to clients with ongoing translation needs.`,
-    vocabulary: [
-      { term: "CAT tools", definition: "Software applications that assist human translators", example: "CAT tools help maintain consistency across large documents." },
-      { term: "Translation memory", definition: "Database of source-target segment pairs", example: "The translation memory contained 50,000 previously translated segments." },
-      { term: "Segment", definition: "A unit of text, typically a sentence, used in CAT tools", example: "Each segment appears with its corresponding translation." },
-      { term: "Termbase", definition: "Glossary database for approved terminology", example: "The termbase ensures consistent translation of technical terms." },
-      { term: "Quality assurance", definition: "Checks to identify errors before delivery", example: "Quality assurance caught several formatting inconsistencies." },
-      { term: "Fuzzy match", definition: "Similar but not identical segment from translation memory", example: "The 85% fuzzy match needed only minor adjustments." },
-      { term: "Pre-translation", definition: "Automatic insertion of TM matches before human review", example: "Pre-translation populated 40% of the document automatically." },
-      { term: "Alignment", definition: "Creating TM from existing translated documents", example: "Alignment of legacy translations created a valuable resource." },
-    ],
-    rating: 4.2,
-    isBookmarked: false,
-  },
-  {
-    id: "4",
-    title: "Financial Translation: Numbers, Culture, and Precision",
-    topic: "Finance",
-    difficulty: "intermediate",
-    date: "2024-01-01",
-    excerpt: "Financial translation combines linguistic skills with knowledge of accounting, economics, and regulations...",
-    content: `Financial translation is a specialized discipline that bridges languages while navigating the complex world of international finance. From annual reports and audit documents to investment prospectuses and banking regulations, financial translators handle materials that influence major business decisions.
-
-Understanding numerical conventions is fundamental. Different countries use different decimal separators, thousand separators, and date formats. Confusing these can turn millions into billions or completely misrepresent financial data. A translator must be vigilant about converting these correctly while maintaining the precision that financial documents demand.
-
-Regulatory awareness is equally important. Financial markets are heavily regulated, and translated documents often must comply with specific requirements. The EU's PRIIPs regulation, for instance, mandates specific language for key information documents. Securities filings in different countries have their own terminology and format requirements.
-
-Cultural considerations extend beyond language. Financial concepts may carry different connotations or legal implications across jurisdictions. The term "director" in UK corporate governance differs significantly from its meaning in other countries. Translators must understand these nuances to convey accurate information.
-
-Currency translation deserves special attention. Beyond converting currency names, translators must consider whether to include exchange rates, how to handle historical versus current values, and when to keep original currency amounts alongside translations.`,
-    vocabulary: [
-      { term: "Annual report", definition: "Yearly document detailing company performance and finances", example: "The annual report required translation into five languages." },
-      { term: "Prospectus", definition: "Document describing securities offered for sale", example: "The IPO prospectus was translated for European investors." },
-      { term: "Decimal separator", definition: "Character separating whole and fractional parts of numbers", example: "Europe uses comma as decimal separator, while the US uses period." },
-      { term: "PRIIPs", definition: "EU regulation on packaged retail investment products", example: "PRIIPs requires standardized key information documents." },
-      { term: "Securities filing", definition: "Official documents submitted to financial regulators", example: "Securities filings must meet strict accuracy requirements." },
-      { term: "Corporate governance", definition: "System of rules and practices directing companies", example: "Corporate governance terms vary between legal systems." },
-      { term: "Exchange rate", definition: "Value of one currency expressed in another", example: "The exchange rate was noted for all currency conversions." },
-      { term: "Audit", definition: "Official examination of financial accounts", example: "The audit report was translated for international stakeholders." },
-    ],
-    rating: 4.0,
-    isBookmarked: false,
-  },
-];
+const DEFAULT_USER_ID = import.meta.env.VITE_DEFAULT_USER_ID || "user_01";
 
 export function NewsletterSystem() {
-  const [articles, setArticles] = useState(mockArticles);
+  const { toast } = useToast();
+  const [articles, setArticles] = useState<Article[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [topicFilter, setTopicFilter] = useState<string>("all");
-  const [difficultyFilter, setDifficultyFilter] = useState<string>("all");
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [userRating, setUserRating] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [topics, setTopics] = useState<string[]>(["all"]);
 
-  const topics = ["all", ...new Set(mockArticles.map((a) => a.topic))];
-  const difficulties = ["all", "beginner", "intermediate", "advanced"];
+  // Article generation state
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [genTopics, setGenTopics] = useState<string>("");
+  const [countPerTopic, setCountPerTopic] = useState(1);
+  const [qualityThreshold, setQualityThreshold] = useState(70);
+  const [maxAttempts, setMaxAttempts] = useState(2);
+
+  // Fetch articles on mount
+  useEffect(() => {
+    loadArticles();
+    loadTopics();
+  }, []);
+
+  const loadArticles = async () => {
+    try {
+      setIsLoading(true);
+      const data = await api.getArticles({ limit: 50 });
+
+      // Transform API data to component format
+      const transformedArticles: Article[] = data.map((article: APIArticle) => ({
+        id: article.article_id,
+        title: article.title,
+        topic: article.topic,
+        date: article.created_at,
+        content: article.content,
+        vocabulary: article.vocabulary || [],
+        quality_score: article.quality_score,
+        isBookmarked: false, // TODO: Load from user preferences
+        rating: article.quality_score ? article.quality_score / 20 : 0, // Convert 0-100 to 0-5
+      }));
+
+      setArticles(transformedArticles);
+
+      if (transformedArticles.length === 0) {
+        toast({
+          title: "No articles found",
+          description: "Generate some articles to get started!",
+          variant: "default",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to load articles:", error);
+      toast({
+        title: "Error loading articles",
+        description: error instanceof Error ? error.message : "Failed to fetch articles",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadTopics = async () => {
+    try {
+      const data = await api.getTopics();
+      const topicNames = data.topics.map((t) => t.topic);
+      setTopics(["all", ...topicNames]);
+    } catch (error) {
+      console.error("Failed to load topics:", error);
+    }
+  };
 
   const filteredArticles = articles.filter((article) => {
     const matchesSearch = article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      article.excerpt.toLowerCase().includes(searchQuery.toLowerCase());
+      article.content.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesTopic = topicFilter === "all" || article.topic === topicFilter;
-    const matchesDifficulty = difficultyFilter === "all" || article.difficulty === difficultyFilter;
-    return matchesSearch && matchesTopic && matchesDifficulty;
+    return matchesSearch && matchesTopic;
   });
 
-  const toggleBookmark = (id: string) => {
-    setArticles((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, isBookmarked: !a.isBookmarked } : a))
-    );
-    if (selectedArticle?.id === id) {
-      setSelectedArticle((prev) => prev ? { ...prev, isBookmarked: !prev.isBookmarked } : null);
+  const toggleBookmark = async (id: string) => {
+    try {
+      await api.recordInteraction({
+        user_id: DEFAULT_USER_ID,
+        article_id: id,
+        interaction_type: "bookmark",
+      });
+
+      setArticles((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, isBookmarked: !a.isBookmarked } : a))
+      );
+
+      if (selectedArticle?.id === id) {
+        setSelectedArticle((prev) => prev ? { ...prev, isBookmarked: !prev.isBookmarked } : null);
+      }
+
+      toast({
+        title: "Bookmark updated",
+        description: "Article bookmark toggled successfully",
+      });
+    } catch (error) {
+      console.error("Failed to toggle bookmark:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update bookmark",
+        variant: "destructive",
+      });
     }
   };
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case "beginner": return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
-      case "intermediate": return "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
-      case "advanced": return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-      default: return "bg-muted text-muted-foreground";
+  const handleArticleClick = async (article: Article) => {
+    setSelectedArticle(article);
+
+    // Record read interaction
+    try {
+      await api.recordInteraction({
+        user_id: DEFAULT_USER_ID,
+        article_id: article.id,
+        interaction_type: "read",
+      });
+    } catch (error) {
+      console.error("Failed to record read interaction:", error);
     }
   };
+
+  const handleRating = async (rating: number) => {
+    if (!selectedArticle) return;
+
+    try {
+      await api.recordInteraction({
+        user_id: DEFAULT_USER_ID,
+        article_id: selectedArticle.id,
+        interaction_type: "rate",
+        rating,
+      });
+
+      // Update the rating in the articles list
+      setArticles(prevArticles =>
+        prevArticles.map(article =>
+          article.id === selectedArticle.id
+            ? { ...article, rating }
+            : article
+        )
+      );
+
+      // Update the selected article
+      setSelectedArticle(prev => prev ? { ...prev, rating } : null);
+      setUserRating(rating);
+
+      toast({
+        title: "Rating submitted",
+        description: `You rated this article ${rating}/5 stars`,
+      });
+    } catch (error) {
+      console.error("Failed to submit rating:", error);
+      toast({
+        title: "Error",
+        description: "Failed to submit rating",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleGenerate = async () => {
+    const topics = genTopics.split(',').map(t => t.trim()).filter(t => t);
+
+    if (topics.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please enter at least one topic",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsGenerating(true);
+
+      const articles = await api.generateArticles({
+        topics,
+        count_per_topic: countPerTopic,
+        quality_threshold: qualityThreshold,
+        max_regeneration_attempts: maxAttempts,
+      });
+
+      toast({
+        title: "Success",
+        description: `Generated ${articles.length} article${articles.length !== 1 ? 's' : ''} successfully!`,
+      });
+
+      setDialogOpen(false);
+      setGenTopics("");
+      await loadArticles();
+      await loadTopics();
+    } catch (error) {
+      console.error("Failed to generate articles:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to generate articles",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading articles...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (selectedArticle) {
     return (
@@ -191,10 +255,12 @@ export function NewsletterSystem() {
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Badge className={getDifficultyColor(selectedArticle.difficulty)}>
-                    {selectedArticle.difficulty}
-                  </Badge>
                   <Badge variant="outline">{selectedArticle.topic}</Badge>
+                  {selectedArticle.quality_score && (
+                    <Badge variant="secondary">
+                      Quality: {selectedArticle.quality_score.toFixed(0)}%
+                    </Badge>
+                  )}
                 </div>
                 <CardTitle className="text-2xl">{selectedArticle.title}</CardTitle>
                 <p className="text-sm text-muted-foreground flex items-center gap-2">
@@ -223,24 +289,24 @@ export function NewsletterSystem() {
               ))}
             </div>
 
-            {/* Vocabulary Cards */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <BookOpen className="h-5 w-5 text-primary" />
-                Vocabulary ({selectedArticle.vocabulary.length} terms)
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {selectedArticle.vocabulary.map((vocab, idx) => (
-                  <Card key={idx} className="bg-muted/50">
-                    <CardContent className="p-4 space-y-2">
-                      <h4 className="font-semibold text-primary">{vocab.term}</h4>
-                      <p className="text-sm text-foreground">{vocab.definition}</p>
-                      <p className="text-xs text-muted-foreground italic">"{vocab.example}"</p>
-                    </CardContent>
-                  </Card>
-                ))}
+            {/* Vocabulary Section */}
+            {selectedArticle.vocabulary.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-primary" />
+                  Vocabulary ({selectedArticle.vocabulary.length} terms)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {selectedArticle.vocabulary.map((term, idx) => (
+                    <Card key={idx} className="bg-muted/50">
+                      <CardContent className="p-4">
+                        <p className="font-semibold text-primary">{term}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Rating System */}
             <Card className="bg-muted/30">
@@ -248,7 +314,9 @@ export function NewsletterSystem() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Rate this article</p>
-                    <p className="text-sm text-muted-foreground">Average rating: {selectedArticle.rating}/5</p>
+                    <p className="text-sm text-muted-foreground">
+                      {userRating > 0 ? `Your rating: ${userRating}/5` : "Click to rate"}
+                    </p>
                   </div>
                   <div className="flex items-center gap-1">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -257,7 +325,7 @@ export function NewsletterSystem() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => setUserRating(star)}
+                        onClick={() => handleRating(star)}
                       >
                         <Star
                           className={`h-5 w-5 ${
@@ -280,7 +348,98 @@ export function NewsletterSystem() {
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
+      {/* Header with Generate Button */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold">Newsletter Articles</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            AI-generated articles with quality evaluation
+          </p>
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Sparkles className="h-4 w-4" />
+              Generate Articles
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Generate AI Articles</DialogTitle>
+              <DialogDescription>
+                Generate articles using Tavily search and LLM-as-a-Judge evaluation
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="topics">Topics (comma-separated)</Label>
+                <Input
+                  id="topics"
+                  placeholder="e.g. Artificial Intelligence, Blockchain, Climate Change"
+                  value={genTopics}
+                  onChange={(e) => setGenTopics(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter multiple topics separated by commas
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Articles per topic: {countPerTopic}</Label>
+                <Slider
+                  value={[countPerTopic]}
+                  onValueChange={([v]) => setCountPerTopic(v)}
+                  min={1}
+                  max={5}
+                  step={1}
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  How many articles to generate for each topic
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Quality threshold: {qualityThreshold}%</Label>
+                <Slider
+                  value={[qualityThreshold]}
+                  onValueChange={([v]) => setQualityThreshold(v)}
+                  min={0}
+                  max={100}
+                  step={5}
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Minimum quality score required (LLM-as-a-Judge evaluation)
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Max regeneration attempts: {maxAttempts}</Label>
+                <Slider
+                  value={[maxAttempts]}
+                  onValueChange={([v]) => setMaxAttempts(v)}
+                  min={0}
+                  max={5}
+                  step={1}
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  How many times to retry if quality is below threshold
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={isGenerating}>
+                Cancel
+              </Button>
+              <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2">
+                {isGenerating && <Loader2 className="h-4 w-4 animate-spin" />}
+                {isGenerating ? "Generating..." : "Generate"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Filters and Refresh */}
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
@@ -306,18 +465,10 @@ export function NewsletterSystem() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={difficultyFilter} onValueChange={setDifficultyFilter}>
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="Difficulty" />
-              </SelectTrigger>
-              <SelectContent>
-                {difficulties.map((diff) => (
-                  <SelectItem key={diff} value={diff}>
-                    {diff === "all" ? "All Levels" : diff.charAt(0).toUpperCase() + diff.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Button onClick={loadArticles} variant="outline" className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -328,15 +479,17 @@ export function NewsletterSystem() {
           <Card
             key={article.id}
             className="cursor-pointer hover:border-primary/50 transition-colors"
-            onClick={() => setSelectedArticle(article)}
+            onClick={() => handleArticleClick(article)}
           >
             <CardContent className="p-4 space-y-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2">
-                  <Badge className={getDifficultyColor(article.difficulty)}>
-                    {article.difficulty}
-                  </Badge>
                   <Badge variant="outline">{article.topic}</Badge>
+                  {article.quality_score && (
+                    <Badge variant="secondary" className="text-xs">
+                      {article.quality_score.toFixed(0)}%
+                    </Badge>
+                  )}
                 </div>
                 <Button
                   variant="ghost"
@@ -354,17 +507,21 @@ export function NewsletterSystem() {
                   )}
                 </Button>
               </div>
-              <h3 className="font-semibold text-lg leading-tight">{article.title}</h3>
-              <p className="text-sm text-muted-foreground line-clamp-2">{article.excerpt}</p>
+              <h3 className="font-semibold text-lg leading-tight line-clamp-2">{article.title}</h3>
+              <p className="text-sm text-muted-foreground line-clamp-2">
+                {article.content.substring(0, 150)}...
+              </p>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5" />
                   {new Date(article.date).toLocaleDateString()}
                 </span>
-                <span className="flex items-center gap-1 text-yellow-500">
-                  <Star className="h-3.5 w-3.5 fill-current" />
-                  {article.rating}
-                </span>
+                {article.rating > 0 && (
+                  <span className="flex items-center gap-1 text-yellow-500">
+                    <Star className="h-3.5 w-3.5 fill-current" />
+                    {article.rating.toFixed(1)}
+                  </span>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -373,8 +530,18 @@ export function NewsletterSystem() {
 
       {filteredArticles.length === 0 && (
         <Card>
-          <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground">No articles found matching your criteria.</p>
+          <CardContent className="p-8 text-center space-y-4">
+            <p className="text-muted-foreground">
+              {articles.length === 0
+                ? "No articles available. Generate some articles using the API!"
+                : "No articles found matching your criteria."}
+            </p>
+            {articles.length === 0 && (
+              <Button onClick={loadArticles} variant="outline">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry Loading
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}

@@ -1,52 +1,106 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   MessageSquare,
   Power,
   Users,
   TrendingUp,
-  ThumbsUp,
-  ThumbsDown,
   Clock,
-  DollarSign,
   Wifi,
   WifiOff,
-  AlertTriangle,
-  Bell,
   CheckCircle,
   XCircle,
+  RefreshCw,
   ArrowUpRight,
   ArrowDownRight,
-  RefreshCw,
+  FileText,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
-// Mock data
-const mockAlerts = [
-  { id: 1, type: "urgent", message: "Client mentioned 'urgent' - Order #4521", time: "2 min ago" },
-  { id: 2, type: "complaint", message: "Negative feedback received from Ahmed K.", time: "15 min ago" },
-  { id: 3, type: "response", message: "Long response time detected (>5 min)", time: "1 hour ago" },
-];
+// API base URL
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-const peakHours = [
-  { hour: "9AM", value: 45 },
-  { hour: "10AM", value: 65 },
-  { hour: "11AM", value: 80 },
-  { hour: "12PM", value: 70 },
-  { hour: "1PM", value: 55 },
-  { hour: "2PM", value: 75 },
-  { hour: "3PM", value: 90 },
-  { hour: "4PM", value: 85 },
-  { hour: "5PM", value: 60 },
-];
+interface Analytics {
+  messages_today: number;
+  conversations_today: number;
+  total_clients: number;
+  new_clients_this_month: number;
+  returning_clients: number;
+  messages_sent: number;
+  messages_received: number;
+  avg_messages_per_conversation: number;
+  tool_usage: Record<string, number>;
+  hourly_distribution: { hour: string; count: number }[];
+  language_distribution: { arabic: number; french: number };
+  uptime_seconds: number;
+}
 
 export default function WhatsAppAgent() {
   const [isAgentActive, setIsAgentActive] = useState(true);
   const [isConnected, setIsConnected] = useState(true);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAnalytics = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/whatsapp_agent/analytics`);
+      if (!response.ok) throw new Error("Failed to fetch analytics");
+      const data = await response.json();
+      setAnalytics(data);
+      setIsConnected(true);
+      setIsAgentActive(data.is_agent_active ?? true);
+      setError(null);
+    } catch (err) {
+      setError("Unable to connect to analytics");
+      setIsConnected(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleAgentStatus = async (active: boolean) => {
+    try {
+      const response = await fetch(`${API_BASE}/whatsapp_agent/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: active }),
+      });
+      if (response.ok) {
+        setIsAgentActive(active);
+      }
+    } catch (err) {
+      console.error("Failed to toggle agent status:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchAnalytics();
+    const interval = setInterval(fetchAnalytics, 30000); // Refresh every 30s
+    return () => clearInterval(interval);
+  }, []);
+
+  // Default values when no data
+  const data = analytics || {
+    messages_today: 0,
+    conversations_today: 0,
+    total_clients: 0,
+    new_clients_this_month: 0,
+    returning_clients: 0,
+    messages_sent: 0,
+    messages_received: 0,
+    avg_messages_per_conversation: 0,
+    tool_usage: {},
+    hourly_distribution: [],
+    language_distribution: { arabic: 0, french: 0 },
+    uptime_seconds: 0,
+  };
+
+  // Calculate max for hourly chart
+  const maxHourly = Math.max(...data.hourly_distribution.map(h => h.count), 1);
 
   return (
     <div className="page-container animate-fade-in">
@@ -62,10 +116,14 @@ export default function WhatsAppAgent() {
               <p className="page-description">Monitor and manage your business chatbot</p>
             </div>
           </div>
-          
+
           {/* Quick Status */}
           <div className="flex items-center gap-3">
-            <Badge 
+            <Button variant="outline" size="sm" onClick={fetchAnalytics} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            <Badge
               variant={isAgentActive ? "default" : "secondary"}
               className={isAgentActive ? "bg-green-500/10 text-green-600 border-green-500/20" : ""}
             >
@@ -90,29 +148,33 @@ export default function WhatsAppAgent() {
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`h-12 w-12 rounded-full flex items-center justify-center ${isAgentActive ? "bg-green-500/10" : "bg-muted"}`}>
-                    <Power className={`h-6 w-6 ${isAgentActive ? "text-green-500" : "text-muted-foreground"}`} />
+                  <div className={`h-12 w-12 rounded-full flex items-center justify-center ${isAgentActive ? "bg-green-500/10" : "bg-red-500/10"}`}>
+                    <Power className={`h-6 w-6 ${isAgentActive ? "text-green-500" : "text-red-500"}`} />
                   </div>
                   <div>
                     <p className="font-medium">{isAgentActive ? "Agent Active" : "Agent Inactive"}</p>
                     <p className="text-sm text-muted-foreground">
-                      {isAgentActive ? "Responding to messages" : "Not responding"}
+                      {isAgentActive ? "Responding to messages" : "Sending offline message"}
                     </p>
                   </div>
                 </div>
-                <Switch 
-                  checked={isAgentActive} 
-                  onCheckedChange={setIsAgentActive}
-                />
+                <Button
+                  variant={isAgentActive ? "destructive" : "default"}
+                  onClick={() => toggleAgentStatus(!isAgentActive)}
+                  className={isAgentActive ? "" : "bg-green-600 hover:bg-green-700"}
+                >
+                  <Power className="h-4 w-4 mr-2" />
+                  {isAgentActive ? "Disable Agent" : "Enable Agent"}
+                </Button>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div className="p-3 rounded-lg bg-muted/50">
-                  <p className="text-2xl font-bold text-foreground">247</p>
+                  <p className="text-2xl font-bold text-foreground">{data.messages_today}</p>
                   <p className="text-sm text-muted-foreground">Messages today</p>
                 </div>
                 <div className="p-3 rounded-lg bg-muted/50">
-                  <p className="text-2xl font-bold text-foreground">89</p>
+                  <p className="text-2xl font-bold text-foreground">{data.conversations_today}</p>
                   <p className="text-sm text-muted-foreground">Conversations</p>
                 </div>
               </div>
@@ -146,25 +208,27 @@ export default function WhatsAppAgent() {
                       {isConnected ? "Connected" : "Disconnected"}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {isConnected ? "WhatsApp Business API" : "Connection lost"}
+                      {isConnected ? "WhatsApp Business API" : error || "Connection lost"}
                     </p>
                   </div>
                 </div>
                 {!isConnected && (
-                  <Button variant="outline" size="sm" onClick={() => setIsConnected(true)}>
+                  <Button variant="outline" size="sm" onClick={fetchAnalytics}>
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Reconnect
                   </Button>
                 )}
               </div>
-              
-              {/* Agent Availability */}
+
+              {/* Uptime */}
               <div className="pt-2">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-muted-foreground">Uptime this month</span>
-                  <span className="text-sm font-medium text-green-600">99.8%</span>
+                  <span className="text-sm text-muted-foreground">Uptime</span>
+                  <span className="text-sm font-medium text-green-600">
+                    {Math.floor(data.uptime_seconds / 3600)}h {Math.floor((data.uptime_seconds % 3600) / 60)}m
+                  </span>
                 </div>
-                <Progress value={99.8} className="h-2" />
+                <Progress value={isConnected ? 100 : 0} className="h-2" />
               </div>
             </CardContent>
           </Card>
@@ -177,10 +241,10 @@ export default function WhatsAppAgent() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Clients</p>
-                  <p className="text-2xl font-bold">1,284</p>
+                  <p className="text-2xl font-bold">{data.total_clients.toLocaleString()}</p>
                   <div className="flex items-center gap-1 mt-1 text-green-600 text-sm">
                     <ArrowUpRight className="h-4 w-4" />
-                    <span>12% this week</span>
+                    <span>{data.new_clients_this_month} new</span>
                   </div>
                 </div>
                 <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -194,11 +258,10 @@ export default function WhatsAppAgent() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Avg Response Time</p>
-                  <p className="text-2xl font-bold">1.2 min</p>
-                  <div className="flex items-center gap-1 mt-1 text-green-600 text-sm">
-                    <ArrowDownRight className="h-4 w-4" />
-                    <span>8% faster</span>
+                  <p className="text-sm text-muted-foreground">Avg Msgs/Conversation</p>
+                  <p className="text-2xl font-bold">{data.avg_messages_per_conversation}</p>
+                  <div className="flex items-center gap-1 mt-1 text-muted-foreground text-sm">
+                    <span>messages per chat</span>
                   </div>
                 </div>
                 <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -212,15 +275,15 @@ export default function WhatsAppAgent() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Conversion Rate</p>
-                  <p className="text-2xl font-bold">24.5%</p>
+                  <p className="text-sm text-muted-foreground">Document Checks</p>
+                  <p className="text-2xl font-bold">{data.tool_usage?.check_document || 0}</p>
                   <div className="flex items-center gap-1 mt-1 text-green-600 text-sm">
-                    <ArrowUpRight className="h-4 w-4" />
-                    <span>3.2% increase</span>
+                    <TrendingUp className="h-4 w-4" />
+                    <span>status queries</span>
                   </div>
                 </div>
                 <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-primary" />
+                  <FileText className="h-6 w-6 text-primary" />
                 </div>
               </div>
             </CardContent>
@@ -230,15 +293,15 @@ export default function WhatsAppAgent() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Revenue Generated</p>
-                  <p className="text-2xl font-bold">$12.4K</p>
+                  <p className="text-sm text-muted-foreground">Returning Clients</p>
+                  <p className="text-2xl font-bold">{data.returning_clients}</p>
                   <div className="flex items-center gap-1 mt-1 text-green-600 text-sm">
                     <ArrowUpRight className="h-4 w-4" />
-                    <span>18% this month</span>
+                    <span>repeat users</span>
                   </div>
                 </div>
                 <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <DollarSign className="h-6 w-6 text-primary" />
+                  <Users className="h-6 w-6 text-primary" />
                 </div>
               </div>
             </CardContent>
@@ -258,30 +321,39 @@ export default function WhatsAppAgent() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-lg bg-muted/50 text-center">
-                  <p className="text-3xl font-bold text-foreground">892</p>
+                  <p className="text-3xl font-bold text-foreground">{data.new_clients_this_month}</p>
                   <p className="text-sm text-muted-foreground">New Clients</p>
                   <p className="text-xs text-green-600 mt-1">This month</p>
                 </div>
                 <div className="p-4 rounded-lg bg-muted/50 text-center">
-                  <p className="text-3xl font-bold text-foreground">392</p>
+                  <p className="text-3xl font-bold text-foreground">{data.returning_clients}</p>
                   <p className="text-sm text-muted-foreground">Returning</p>
-                  <p className="text-xs text-primary mt-1">30.5% return rate</p>
+                  <p className="text-xs text-primary mt-1">
+                    {data.total_clients > 0
+                      ? `${Math.round((data.returning_clients / data.total_clients) * 100)}% return rate`
+                      : "0% return rate"
+                    }
+                  </p>
                 </div>
               </div>
-              
+
               {/* Peak Hours */}
               <div>
                 <p className="text-sm font-medium mb-3">Peak Activity Hours</p>
                 <div className="flex items-end justify-between h-20 gap-1">
-                  {peakHours.map((hour) => (
-                    <div key={hour.hour} className="flex-1 flex flex-col items-center gap-1">
-                      <div 
-                        className="w-full rounded-t gradient-brand opacity-70 hover:opacity-100 transition-opacity"
-                        style={{ height: `${hour.value}%` }}
-                      />
-                      <span className="text-xs text-muted-foreground">{hour.hour}</span>
-                    </div>
-                  ))}
+                  {data.hourly_distribution.length > 0 ? (
+                    data.hourly_distribution.map((hour) => (
+                      <div key={hour.hour} className="flex-1 flex flex-col items-center gap-1">
+                        <div
+                          className="w-full rounded-t gradient-brand opacity-70 hover:opacity-100 transition-opacity"
+                          style={{ height: `${(hour.count / maxHourly) * 100}%`, minHeight: hour.count > 0 ? "4px" : "0" }}
+                        />
+                        <span className="text-xs text-muted-foreground">{hour.hour}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground w-full text-center">No data yet</p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -298,132 +370,51 @@ export default function WhatsAppAgent() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
                 <div className="p-3 rounded-lg bg-muted/50 text-center">
-                  <p className="text-xl font-bold text-foreground">5.2K</p>
+                  <p className="text-xl font-bold text-foreground">{data.messages_sent}</p>
                   <p className="text-xs text-muted-foreground">Sent</p>
                 </div>
                 <div className="p-3 rounded-lg bg-muted/50 text-center">
-                  <p className="text-xl font-bold text-foreground">4.8K</p>
+                  <p className="text-xl font-bold text-foreground">{data.messages_received}</p>
                   <p className="text-xs text-muted-foreground">Received</p>
                 </div>
                 <div className="p-3 rounded-lg bg-muted/50 text-center">
-                  <p className="text-xl font-bold text-foreground">8.3</p>
+                  <p className="text-xl font-bold text-foreground">{data.avg_messages_per_conversation}</p>
                   <p className="text-xs text-muted-foreground">Avg/Conv</p>
                 </div>
               </div>
-              
-              {/* Resolution Rate */}
+
+              {/* Language Distribution */}
               <div className="space-y-3">
+                <p className="text-sm font-medium">Language Distribution</p>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm">Resolved Queries</span>
-                    <span className="text-sm font-medium text-green-600">87%</span>
+                    <span className="text-sm">Arabic</span>
+                    <span className="text-sm font-medium">{data.language_distribution.arabic}</span>
                   </div>
                   <div className="h-3 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-green-500 rounded-full" style={{ width: "87%" }} />
+                    <div
+                      className="h-full bg-green-500 rounded-full"
+                      style={{
+                        width: `${(data.language_distribution.arabic / Math.max(data.language_distribution.arabic + data.language_distribution.french, 1)) * 100}%`
+                      }}
+                    />
                   </div>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm">Unresolved</span>
-                    <span className="text-sm font-medium text-amber-600">13%</span>
+                    <span className="text-sm">French</span>
+                    <span className="text-sm font-medium">{data.language_distribution.french}</span>
                   </div>
                   <div className="h-3 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-amber-500 rounded-full" style={{ width: "13%" }} />
+                    <div
+                      className="h-full bg-blue-500 rounded-full"
+                      style={{
+                        width: `${(data.language_distribution.french / Math.max(data.language_distribution.arabic + data.language_distribution.french, 1)) * 100}%`
+                      }}
+                    />
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Bottom Row - Feedback & Alerts */}
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Client Feedback */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <ThumbsUp className="h-5 w-5 text-primary" />
-                Client Feedback
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-center gap-8 py-4">
-                <div className="text-center">
-                  <div className="h-16 w-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-2">
-                    <ThumbsUp className="h-8 w-8 text-green-500" />
-                  </div>
-                  <p className="text-2xl font-bold text-foreground">89%</p>
-                  <p className="text-sm text-muted-foreground">Positive</p>
-                </div>
-                <div className="h-16 w-px bg-border" />
-                <div className="text-center">
-                  <div className="h-16 w-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-2">
-                    <ThumbsDown className="h-8 w-8 text-red-500" />
-                  </div>
-                  <p className="text-2xl font-bold text-foreground">11%</p>
-                  <p className="text-sm text-muted-foreground">Negative</p>
-                </div>
-              </div>
-              
-              <div className="p-4 rounded-lg bg-muted/50">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Satisfaction Trend</span>
-                  <Badge variant="outline" className="text-green-600 border-green-500/30">
-                    <ArrowUpRight className="h-3 w-3 mr-1" />
-                    +5% this week
-                  </Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Based on 342 feedback responses collected this month
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Customizable Alerts */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Bell className="h-5 w-5 text-primary" />
-                  Priority Alerts
-                </div>
-                <Badge variant="destructive" className="text-xs">
-                  {mockAlerts.length} new
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[180px] pr-4">
-                <div className="space-y-3">
-                  {mockAlerts.map((alert) => (
-                    <div 
-                      key={alert.id} 
-                      className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-                    >
-                      <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        alert.type === "urgent" 
-                          ? "bg-red-500/10" 
-                          : alert.type === "complaint" 
-                          ? "bg-amber-500/10" 
-                          : "bg-blue-500/10"
-                      }`}>
-                        <AlertTriangle className={`h-4 w-4 ${
-                          alert.type === "urgent" 
-                            ? "text-red-500" 
-                            : alert.type === "complaint" 
-                            ? "text-amber-500" 
-                            : "text-blue-500"
-                        }`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{alert.message}</p>
-                        <p className="text-xs text-muted-foreground">{alert.time}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
             </CardContent>
           </Card>
         </div>

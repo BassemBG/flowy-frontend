@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.env
+
+# Git
+.git/
+.gitignore
+
+# Node / frontend junk
+node_modules/
+
+# Audio / data
+*.wav
+*.mp3
+*.m4a
+data/
+datasets/
+uploads/
+
+# Docker
+Dockerfile
+docker-compose.yml
