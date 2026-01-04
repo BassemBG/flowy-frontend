@@ -1,16 +1,18 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { BookOpen, Upload, FileSpreadsheet, Trash2, Eye, Send, Search, Globe, X } from "lucide-react";
+import { BookOpen, Upload, FileSpreadsheet, Trash2, Eye, Send, Search, Globe, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { glossaryApi, ManagedFile as ApiManagedFile } from "@/services/glossaryApi";
 
 interface ManagedFile {
   id: string;
   name: string;
   size: number;
   uploadedAt: Date;
+  termsCount?: number;
 }
 
 interface ChatMessage {
@@ -24,6 +26,8 @@ interface ChatMessage {
 export default function Glossary() {
   const [files, setFiles] = useState<ManagedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "1",
@@ -45,6 +49,27 @@ export default function Glossary() {
     scrollToBottom();
   }, [messages]);
 
+  // Load files on mount
+  useEffect(() => {
+    loadFiles();
+  }, []);
+
+  const loadFiles = async () => {
+    try {
+      const response = await glossaryApi.listFiles();
+      const mappedFiles: ManagedFile[] = response.files.map((f: ApiManagedFile) => ({
+        id: f.id,
+        name: f.name,
+        size: f.size,
+        uploadedAt: new Date(f.uploaded_at),
+        termsCount: f.terms_count,
+      }));
+      setFiles(mappedFiles);
+    } catch (error) {
+      console.error("Failed to load files:", error);
+    }
+  };
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -60,32 +85,64 @@ export default function Glossary() {
     setIsDragging(false);
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile && (droppedFile.name.endsWith('.xlsx') || droppedFile.name.endsWith('.xls') || droppedFile.name.endsWith('.csv'))) {
-      addFile(droppedFile);
+      uploadFile(droppedFile);
     }
   }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      addFile(selectedFile);
+      uploadFile(selectedFile);
     }
   };
 
-  const addFile = (file: File) => {
-    const newFile: ManagedFile = {
-      id: Date.now().toString(),
-      name: file.name,
-      size: file.size,
-      uploadedAt: new Date(),
-    };
-    setFiles((prev) => [...prev, newFile]);
+  const uploadFile = async (file: File) => {
+    setIsUploading(true);
+    try {
+      const response = await glossaryApi.uploadFile(file);
+      const newFile: ManagedFile = {
+        id: response.id,
+        name: response.name,
+        size: response.size,
+        uploadedAt: new Date(response.uploaded_at),
+        termsCount: response.terms_count,
+      };
+      setFiles((prev) => [...prev, newFile]);
+
+      // Add success message to chat
+      const successMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: "assistant",
+        content: `✅ ${response.message}`,
+        timestamp: new Date(),
+        mode: "glossary",
+      };
+      setMessages((prev) => [...prev, successMessage]);
+    } catch (error) {
+      console.error("Upload failed:", error);
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: "assistant",
+        content: `❌ Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        timestamp: new Date(),
+        mode: "glossary",
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
-  const deleteFile = (id: string) => {
-    setFiles((prev) => prev.filter((f) => f.id !== id));
+  const deleteFile = async (id: string) => {
+    try {
+      await glossaryApi.deleteFile(id);
+      setFiles((prev) => prev.filter((f) => f.id !== id));
+    } catch (error) {
+      console.error("Delete failed:", error);
+    }
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
 
     const userMessage: ChatMessage = {
@@ -97,21 +154,56 @@ export default function Glossary() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const query = inputValue;
     setInputValue("");
+    setIsSearching(true);
 
-    // Simulate AI response
-    setTimeout(() => {
+    if (searchMode === "glossary") {
+      try {
+        const response = await glossaryApi.searchGlossary(query, 3);
+
+        let content = "";
+        if (response.results.length > 0) {
+          content = "**Top matches:**\n";
+          response.results.forEach((r, i) => {
+            const confidence = Math.round(r.score * 100);
+            content += `\n${i + 1}. **${r.term}** (${confidence}% confidence)\n   ${r.definition}`;
+          });
+        } else {
+          content = "No matching terms found in the glossary.";
+        }
+
+        const assistantMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content,
+          timestamp: new Date(),
+          mode: "glossary",
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      } catch (error) {
+        const errorMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: `❌ Search failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+          timestamp: new Date(),
+          mode: "glossary",
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      }
+    } else {
+      // Web search - placeholder until implemented
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: searchMode === "glossary"
-          ? `[Glossary Search] I searched your uploaded glossary files for "${inputValue}". Here are the relevant terms and definitions I found...\n\n(Connect to AI backend for actual glossary search functionality.)`
-          : `[Web Search] I searched the web for "${inputValue}". Here's what I found...\n\n(Connect to AI backend for actual web search functionality.)`,
+        content: `[Web Search] Web search for "${query}" is not yet implemented. Coming soon!`,
         timestamp: new Date(),
-        mode: searchMode,
+        mode: "web",
       };
       setMessages((prev) => [...prev, assistantMessage]);
-    }, 1000);
+    }
+
+    setIsSearching(false);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -145,7 +237,11 @@ export default function Glossary() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
-                <Upload className="h-4 w-4 text-primary" />
+                {isUploading ? (
+                  <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4 text-primary" />
+                )}
                 Upload Excel
               </CardTitle>
             </CardHeader>
@@ -156,10 +252,11 @@ export default function Glossary() {
                 onDrop={handleDrop}
                 className={`
                   relative border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer
-                  ${isDragging 
-                    ? "border-primary bg-primary/5" 
+                  ${isDragging
+                    ? "border-primary bg-primary/5"
                     : "border-border hover:border-primary/50 hover:bg-muted/50"
                   }
+                  ${isUploading ? "opacity-50 pointer-events-none" : ""}
                 `}
               >
                 <input
@@ -167,13 +264,14 @@ export default function Glossary() {
                   onChange={handleFileSelect}
                   accept=".xlsx,.xls,.csv"
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  disabled={isUploading}
                 />
                 <div className="flex flex-col items-center gap-2">
                   <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                     <FileSpreadsheet className="h-5 w-5 text-primary" />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Drop Excel file or click
+                    {isUploading ? "Uploading..." : "Drop Excel file or click"}
                   </p>
                 </div>
               </div>
@@ -203,7 +301,12 @@ export default function Glossary() {
                       >
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <FileSpreadsheet className="h-4 w-4 text-primary shrink-0" />
-                          <span className="text-sm truncate">{file.name}</span>
+                          <div className="min-w-0">
+                            <span className="text-sm truncate block">{file.name}</span>
+                            {file.termsCount !== undefined && (
+                              <span className="text-xs text-muted-foreground">{file.termsCount} terms</span>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           <Button
@@ -249,13 +352,12 @@ export default function Glossary() {
                   className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                      message.role === "user"
-                        ? message.mode === "glossary"
-                          ? "bg-blue-500 text-white"
-                          : "bg-purple-500 text-white"
-                        : "bg-muted text-foreground"
-                    }`}
+                    className={`max-w-[80%] rounded-2xl px-4 py-3 ${message.role === "user"
+                      ? message.mode === "glossary"
+                        ? "bg-blue-500 text-white"
+                        : "bg-purple-500 text-white"
+                      : "bg-muted text-foreground"
+                      }`}
                   >
                     {message.role === "assistant" && (
                       <div className="flex items-center gap-1.5 mb-1">
@@ -276,6 +378,14 @@ export default function Glossary() {
                   </div>
                 </div>
               ))}
+              {isSearching && (
+                <div className="flex justify-start">
+                  <div className="bg-muted rounded-2xl px-4 py-3 flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">Searching...</span>
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
@@ -292,22 +402,20 @@ export default function Glossary() {
               >
                 <ToggleGroupItem
                   value="glossary"
-                  className={`px-4 py-2 text-sm rounded-md transition-all ${
-                    isGlossaryMode
-                      ? "bg-blue-500 text-white shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
+                  className={`px-4 py-2 text-sm rounded-md transition-all ${isGlossaryMode
+                    ? "bg-blue-500 text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                    }`}
                 >
                   <Search className="h-4 w-4 mr-2" />
                   Glossary Search
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="web"
-                  className={`px-4 py-2 text-sm rounded-md transition-all ${
-                    !isGlossaryMode
-                      ? "bg-purple-500 text-white shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
+                  className={`px-4 py-2 text-sm rounded-md transition-all ${!isGlossaryMode
+                    ? "bg-purple-500 text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                    }`}
                 >
                   <Globe className="h-4 w-4 mr-2" />
                   Web Search
@@ -323,11 +431,11 @@ export default function Glossary() {
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder={isGlossaryMode ? "Search your glossary..." : "Search the web..."}
-                  className={`pr-10 transition-all ${
-                    isGlossaryMode
-                      ? "border-blue-200 focus-visible:ring-blue-500"
-                      : "border-purple-200 focus-visible:ring-purple-500"
-                  }`}
+                  className={`pr-10 transition-all ${isGlossaryMode
+                    ? "border-blue-200 focus-visible:ring-blue-500"
+                    : "border-purple-200 focus-visible:ring-purple-500"
+                    }`}
+                  disabled={isSearching}
                 />
                 {inputValue && (
                   <Button
@@ -342,14 +450,17 @@ export default function Glossary() {
               </div>
               <Button
                 onClick={handleSendMessage}
-                disabled={!inputValue.trim()}
-                className={`transition-all ${
-                  isGlossaryMode
-                    ? "bg-blue-500 hover:bg-blue-600"
-                    : "bg-purple-500 hover:bg-purple-600"
-                } text-white`}
+                disabled={!inputValue.trim() || isSearching}
+                className={`transition-all ${isGlossaryMode
+                  ? "bg-blue-500 hover:bg-blue-600"
+                  : "bg-purple-500 hover:bg-purple-600"
+                  } text-white`}
               >
-                <Send className="h-4 w-4" />
+                {isSearching ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </div>
