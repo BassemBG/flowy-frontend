@@ -22,6 +22,8 @@ services:
     build: ./microservices/ai_glossary
     env_file:
       - ./microservices/ai_glossary/.env
+    volumes:
+      - ./microservices/ai_glossary/chroma_data:/app/chroma_data
 
   ai_notekeeper:
     build: ./microservices/ai_notekeeper
